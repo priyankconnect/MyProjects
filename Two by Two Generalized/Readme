@@ -1,0 +1,6 @@
+This file takes a database as input . Then it takes xaxis and y axis as two numeric variable. It then plots third categorical variable
+in the low high axis, thus creating a BCG type of structure. 
+Synthetic dataset is used for testing. 
+The four  quadrants are created at the intersection of median of two numeric variables. 
+Useful for a three variable analysis, in which two of them are numeric and one is categorical
+Enjoy applying
