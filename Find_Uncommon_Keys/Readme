@@ -1,0 +1,2 @@
+This is a tool that you can use to compare two dataframe before merging. It takes the merging keys and tells you if the
+left df has some exclusive keys or right. It also tells those keys so that you can inspect them 
