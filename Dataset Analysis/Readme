@@ -1,0 +1,11 @@
+This is a file which takes a dataset and find the presence of common data faults. It includes:
+  a. Generation of dataset
+b. Checking difference in cases within a column
+c. Find duplicate rows in a df
+d. Find  outliers in a df
+e. Find the rows will same values
+f. Find the rows with blank values
+g. Find special characters or white spaces only in the df
+h. Checking if all dfs have different datatyes
+i. Find the gap in the date column
+j. To find if there is a correlation between the numeric columns. 
