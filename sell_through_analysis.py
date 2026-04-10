@@ -30,7 +30,7 @@ def latest_soh_total(df):
     return latest_df["SOH"].sum()
 
 
-def apply_filters(df, store_class, region, buyer, price_bucket, state, mh_segment, mh_family, store_name):
+def apply_filters(df, store_class, region, buyer, vendor_name, price_bucket, state, mh_segment, mh_family, store_name):
     temp = df.copy()
 
     def _filter(col, vals):
@@ -41,6 +41,7 @@ def apply_filters(df, store_class, region, buyer, price_bucket, state, mh_segmen
     _filter("Store Classification", store_class)
     _filter("Region", region)
     _filter("PURCHASER NAME", buyer)
+    _filter("Vendor Name", vendor_name)
     _filter("MRP Bucket", price_bucket)
     _filter("State", state)
     _filter("MH Segment", mh_segment)
@@ -286,6 +287,7 @@ st.sidebar.header("Filters")
 store_class = st.sidebar.multiselect("Store Classification", sorted(df["Store Classification"].dropna().astype(str).unique()))
 region = st.sidebar.multiselect("Region", sorted(df["Region"].dropna().astype(str).unique()))
 buyer = st.sidebar.multiselect("Buyer", sorted(df["PURCHASER NAME"].dropna().astype(str).unique()))
+vendor_name = st.sidebar.multiselect("Vendor Name", sorted(df["Vendor Name"].dropna().astype(str).unique())) if "Vendor Name" in df.columns else []
 price_bucket = st.sidebar.multiselect("Price Bucket", sorted(df["MRP Bucket"].dropna().astype(str).unique()))
 state = st.sidebar.multiselect("State", sorted(df["State"].dropna().astype(str).unique()))
 mh_segment = st.sidebar.multiselect("MH Segment", sorted(df["MH Segment"].dropna().astype(str).unique()))
@@ -299,7 +301,7 @@ analysis_dim = st.sidebar.selectbox(
 recent_weeks = st.sidebar.slider("Recent weeks for Weeks Cover / Transfers", 2, 12, 4)
 transfer_item = st.sidebar.selectbox("Transfer item level", ["GENERIC", "MH Brick", "MH Class", "MH Family"])
 
-filtered = apply_filters(df, store_class, region, buyer, price_bucket, state, mh_segment, mh_family, store_name)
+filtered = apply_filters(df, store_class, region, buyer, vendor_name, price_bucket, state, mh_segment, mh_family, store_name)
 
 if filtered.empty:
     st.warning("No data after applying filters.")
