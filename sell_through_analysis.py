@@ -123,6 +123,56 @@ def weeks_cover_summary(df, dim="MH Family", recent_weeks=4):
     return s.sort_values("Weeks_Cover", ascending=False)
 
 
+def st_soh_grid(df, dim, recent_weeks=4):
+    temp = df.copy()
+
+    all_weeks = sorted(temp["Week no"].dropna().unique())
+    recent = all_weeks[-recent_weeks:] if len(all_weeks) >= recent_weeks else all_weeks
+    sales_df = temp[temp["Week no"].isin(recent)]
+
+    sales_grp = sales_df.groupby(dim, dropna=False).agg(
+        Total_Sale=("Sale", "sum"),
+        Weeks=("Week no", "nunique")
+    ).reset_index()
+
+    latest_week = max(all_weeks) if all_weeks else None
+    latest_df = temp[temp["Week no"] == latest_week] if latest_week is not None else temp
+
+    soh_grp = latest_df.groupby(dim, dropna=False).agg(
+        Current_SOH=("SOH", "sum")
+    ).reset_index()
+
+    g = sales_grp.merge(soh_grp, on=dim, how="outer")
+    g["Total_Sale"] = g["Total_Sale"].fillna(0)
+    g["Current_SOH"] = g["Current_SOH"].fillna(0)
+    g["Weeks"] = g["Weeks"].fillna(0)
+
+    g["Avg_Weekly_Sales"] = np.where(g["Weeks"] > 0, g["Total_Sale"] / g["Weeks"], np.nan)
+    g["Sell_Through"] = np.where(g["Current_SOH"] > 0,
+                                 g["Avg_Weekly_Sales"] / g["Current_SOH"] * 100,
+                                 np.nan)
+
+    g["Weeks_Cover"] = np.where(g["Avg_Weekly_Sales"] > 0,
+                                g["Current_SOH"] / g["Avg_Weekly_Sales"],
+                                np.nan)
+
+    def classify(row):
+        if pd.isna(row["Sell_Through"]) or pd.isna(row["Weeks_Cover"]):
+            return "Unknown"
+
+        if row["Sell_Through"] >= 3:
+            if row["Weeks_Cover"] < 3:
+                return "Star (Replenish)"
+            return "Strong (Hold)"
+
+        if row["Weeks_Cover"] < 3:
+            return "Missed Opportunity"
+        return "Dead Stock"
+
+    g["Category"] = g.apply(classify, axis=1)
+    return g.sort_values(["Category", "Sell_Through"], ascending=[True, False])
+
+
 def transfer_engine(df, item_col="GENERIC", min_wc=3, max_wc=8, recent_weeks=4):
     data = df.copy()
     all_weeks = sorted(data["Week no"].dropna().unique())
@@ -420,6 +470,10 @@ with inventory_tab:
     st.subheader("Inventory Health")
     inv = weeks_cover_summary(filtered, analysis_dim, recent_weeks=recent_weeks)
     st.dataframe(inv, use_container_width=True)
+
+    st.subheader("ST-SOH Classification Grid")
+    st_grid = st_soh_grid(filtered, analysis_dim, recent_weeks=recent_weeks)
+    st.dataframe(st_grid, use_container_width=True)
 
     col1, col2 = st.columns(2)
     with col1:
