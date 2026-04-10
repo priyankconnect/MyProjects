@@ -84,6 +84,27 @@ def grouped_sellthrough(df, dim):
     return g.sort_values("Sell_Through", ascending=False)
 
 
+def contribution_analysis(df, dim):
+    sales_part = df.groupby(dim, dropna=False).agg(Sale=("Sale", "sum")).reset_index()
+
+    all_weeks = df["Week no"].dropna().unique()
+    latest_week = max(all_weeks) if len(all_weeks) else None
+    latest_df = df[df["Week no"] == latest_week].copy() if latest_week is not None else df.copy()
+    soh_part = latest_df.groupby(dim, dropna=False).agg(Current_SOH=("SOH", "sum")).reset_index()
+
+    g = sales_part.merge(soh_part, on=dim, how="outer")
+    g["Sale"] = g["Sale"].fillna(0)
+    g["Current_SOH"] = g["Current_SOH"].fillna(0)
+
+    total_sales = g["Sale"].sum()
+    total_soh = g["Current_SOH"].sum()
+    g["Sales_Contribution_%"] = np.where(total_sales > 0, g["Sale"] / total_sales * 100, 0)
+    g["Stock_Contribution_%"] = np.where(total_soh > 0, g["Current_SOH"] / total_soh * 100, 0)
+
+    g = g.sort_values("Sales_Contribution_%", ascending=False)
+    return g
+
+
 def heatmap_pivot(df, dim):
     g = df.groupby([dim, "Week no"], dropna=False)[["Sale", "SOH"]].sum().reset_index()
     g["Sell_Through"] = np.where(g["SOH"] > 0, g["Sale"] / g["SOH"] * 100, np.nan)
@@ -421,8 +442,8 @@ c2.metric("Total SOH (Latest Snapshot)", f"{total_soh:,.0f}")
 c3.metric("Overall Sell Through %", f"{overall_st:.2f}" if pd.notna(overall_st) else "NA")
 c4.metric("Weeks in Data", f"{filtered['Week no'].nunique()}")
 
-summary_tab, trend_tab, compare_tab, heatmap_tab, inventory_tab, transfer_tab, data_tab = st.tabs([
-    "Summary", "Trends", "Comparisons", "Heatmap", "Inventory", "Transfers", "Data"
+summary_tab, trend_tab, compare_tab, heatmap_tab, inventory_tab, transfer_tab, analysis_tab, data_tab = st.tabs([
+    "Summary", "Trends", "Comparisons", "Heatmap", "Inventory", "Transfers", "Analysis", "Data"
 ])
 
 with summary_tab:
@@ -509,6 +530,24 @@ with transfer_tab:
         st.dataframe(transfer_plan, use_container_width=True)
         tp = transfer_plan.groupby("From_Store", dropna=False)["Transfer_Qty"].sum().reset_index()
         show_bar(tp.head(20), "From_Store", "Transfer_Qty", "Outgoing Transfer Qty by Store")
+
+with analysis_tab:
+    st.subheader(f"Sales vs Stock Contribution by {analysis_dim}")
+    contrib = contribution_analysis(filtered, analysis_dim)
+
+    def _highlight_row(row):
+        is_green = row["Sales_Contribution_%"] > row["Stock_Contribution_%"]
+        color = "background-color: #d4edda" if is_green else ""
+        return [color] * len(row)
+
+    styled = contrib.style.format({
+        "Sale": "{:,.0f}",
+        "Current_SOH": "{:,.0f}",
+        "Sales_Contribution_%": "{:.2f}%",
+        "Stock_Contribution_%": "{:.2f}%",
+    }).apply(_highlight_row, axis=1)
+    st.dataframe(styled, use_container_width=True)
+
 
 with data_tab:
     st.subheader("Filtered Data")
