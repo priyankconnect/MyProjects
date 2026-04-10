@@ -157,6 +157,9 @@ def st_soh_grid(df, dim, recent_weeks=4):
                                 np.nan)
 
     def classify(row):
+        if row["Current_SOH"] < 100:
+            return "Insufficient stock"
+
         if pd.isna(row["Sell_Through"]) or pd.isna(row["Weeks_Cover"]):
             return "Unknown"
 
