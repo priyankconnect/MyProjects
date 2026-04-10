@@ -201,6 +201,36 @@ def transfer_engine(df, item_col="GENERIC", min_wc=3, max_wc=8, recent_weeks=4):
     return grp, transfer_df
 
 
+def store_role_summary(df, min_wc=3, max_wc=8, recent_weeks=4):
+    data = df.copy()
+    all_weeks = sorted(data["Week no"].dropna().unique())
+    recent = all_weeks[-recent_weeks:] if len(all_weeks) >= recent_weeks else all_weeks
+
+    group_cols = ["State", "MH Family", "MRP Bucket", "Site", "Store Name"]
+
+    sales_df = data[data["Week no"].isin(recent)].copy()
+    sales_grp = sales_df.groupby(group_cols, dropna=False).agg(
+        Sale=("Sale", "sum")
+    ).reset_index()
+
+    latest_week = max(all_weeks) if all_weeks else None
+    latest_df = data[data["Week no"] == latest_week].copy() if latest_week is not None else data.copy()
+    soh_grp = latest_df.groupby(group_cols, dropna=False).agg(
+        Current_SOH=("SOH", "sum")
+    ).reset_index()
+
+    s = sales_grp.merge(soh_grp, on=group_cols, how="outer")
+    s["Sale"] = s["Sale"].fillna(0)
+    s["Current_SOH"] = s["Current_SOH"].fillna(0)
+
+    denom = max(len(recent), 1)
+    s["Avg_Weekly_Sales"] = s["Sale"] / denom
+    s["Weeks_Cover"] = np.where(s["Avg_Weekly_Sales"] > 0, s["Current_SOH"] / s["Avg_Weekly_Sales"], np.nan)
+    s["Role"] = np.where(s["Weeks_Cover"] < min_wc, "Receiver",
+                          np.where(s["Weeks_Cover"] > max_wc, "Donor", "Balanced"))
+    return s.sort_values(["State", "MH Family", "MRP Bucket", "Weeks_Cover"], ascending=[True, True, True, False])
+
+
 
 def show_bar(df, x, y, title, horizontal=False):
     fig, ax = plt.subplots(figsize=(10, 5))
@@ -399,6 +429,10 @@ with transfer_tab:
 
     st.markdown("**Base Table**")
     st.dataframe(base_table, use_container_width=True)
+
+    st.markdown("**Store Role Summary (MH Family → MRP Bucket, no GENERIC)**")
+    role_table = store_role_summary(filtered, recent_weeks=recent_weeks)
+    st.dataframe(role_table, use_container_width=True)
 
     st.markdown("**Transfer Plan**")
     if transfer_plan.empty:
