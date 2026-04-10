@@ -127,18 +127,20 @@ def transfer_engine(df, item_col="GENERIC", min_wc=3, max_wc=8, recent_weeks=4):
     all_weeks = sorted(data["Week no"].dropna().unique())
     recent = all_weeks[-recent_weeks:] if len(all_weeks) >= recent_weeks else all_weeks
 
+    scope_cols = ["State", "MH Family", "MRP Bucket", item_col, "Site", "Store Name"]
+
     sales_df = data[data["Week no"].isin(recent)].copy()
-    sales_grp = sales_df.groupby([item_col, "Site", "Store Name"], dropna=False).agg(
+    sales_grp = sales_df.groupby(scope_cols, dropna=False).agg(
         Sale=("Sale", "sum")
     ).reset_index()
 
     latest_week = max(all_weeks) if all_weeks else None
     latest_df = data[data["Week no"] == latest_week].copy() if latest_week is not None else data.copy()
-    soh_grp = latest_df.groupby([item_col, "Site", "Store Name"], dropna=False).agg(
+    soh_grp = latest_df.groupby(scope_cols, dropna=False).agg(
         Current_SOH=("SOH", "sum")
     ).reset_index()
 
-    grp = sales_grp.merge(soh_grp, on=[item_col, "Site", "Store Name"], how="outer")
+    grp = sales_grp.merge(soh_grp, on=scope_cols, how="outer")
     grp["Sale"] = grp["Sale"].fillna(0)
     grp["Current_SOH"] = grp["Current_SOH"].fillna(0)
 
@@ -149,13 +151,16 @@ def transfer_engine(df, item_col="GENERIC", min_wc=3, max_wc=8, recent_weeks=4):
                             np.where(grp["Weeks_Cover"] > max_wc, "Donor", "Balanced"))
 
     transfers = []
+    match_cols = ["State", "MH Family", "MRP Bucket", item_col]
 
-    for item, sub in grp.groupby(item_col, dropna=False):
+    for keys, sub in grp.groupby(match_cols, dropna=False):
         donors = sub[sub["Role"] == "Donor"].copy().sort_values("Weeks_Cover", ascending=False)
         receivers = sub[sub["Role"] == "Receiver"].copy().sort_values("Weeks_Cover", ascending=True)
 
         if donors.empty or receivers.empty:
             continue
+
+        state, mh_family, mrp_bucket, item = keys
 
         for _, r in receivers.iterrows():
             target_stock = r["Avg_Weekly_Sales"] * min_wc
@@ -174,6 +179,9 @@ def transfer_engine(df, item_col="GENERIC", min_wc=3, max_wc=8, recent_weeks=4):
                     continue
 
                 transfers.append({
+                    "State": state,
+                    "MH Family": mh_family,
+                    "MRP Bucket": mrp_bucket,
                     item_col: item,
                     "From_Store": d["Site"],
                     "From_Store_Name": d["Store Name"],
@@ -191,6 +199,7 @@ def transfer_engine(df, item_col="GENERIC", min_wc=3, max_wc=8, recent_weeks=4):
 
     transfer_df = pd.DataFrame(transfers)
     return grp, transfer_df
+
 
 
 def show_bar(df, x, y, title, horizontal=False):
