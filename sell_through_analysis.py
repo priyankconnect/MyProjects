@@ -2,6 +2,7 @@ import pandas as pd
 import numpy as np
 import streamlit as st
 import matplotlib.pyplot as plt
+from matplotlib.colors import ListedColormap, BoundaryNorm
 
 st.set_page_config(page_title="Sell Through Analysis", layout="wide")
 
@@ -264,13 +265,23 @@ def show_line(df, x, y, title, color_by=None):
 
 def show_heatmap(pivot, title):
     fig, ax = plt.subplots(figsize=(12, max(5, len(pivot) * 0.35)))
-    im = ax.imshow(pivot.values, aspect="auto")
+
+    st_vals = pivot.values
+    category_map = np.where(st_vals > 4, 2, np.where(st_vals >= 3, 1, 0))
+    cmap = ListedColormap(["#d73027", "#fee08b", "#1a9850"])
+    norm = BoundaryNorm([-0.5, 0.5, 1.5, 2.5], cmap.N)
+
+    im = ax.imshow(category_map, aspect="auto", cmap=cmap, norm=norm)
     ax.set_title(title)
     ax.set_xticks(range(len(pivot.columns)))
     ax.set_xticklabels(pivot.columns, rotation=45)
     ax.set_yticks(range(len(pivot.index)))
     ax.set_yticklabels(pivot.index.astype(str))
-    fig.colorbar(im, ax=ax, label="Sell Through %")
+
+    cbar = fig.colorbar(im, ax=ax, ticks=[0, 1, 2])
+    cbar.ax.set_yticklabels(["Low (<3%)", "Average (3-4%)", "Good (>4%)"])
+    cbar.set_label("Sell Through Band")
+
     st.pyplot(fig)
 
 
